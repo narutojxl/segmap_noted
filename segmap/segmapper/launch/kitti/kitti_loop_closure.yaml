@@ -1,0 +1,182 @@
+SegMapper: {
+  number_of_robots: 1,
+  robot_prefix: "na",
+  
+  world_frame: "map",
+  clear_local_map_after_loop_closure: false,
+  
+  publish_world_to_odom: true,    #default: true 是否发布world to odom tf
+  tf_publication_rate_hz: 10,
+  
+  LaserSlamWorker: {
+    use_odometry_information: true,  #default: true
+    
+    odom_frame: "world",
+    sensor_frame: "velodyne",
+    
+    assembled_cloud_sub_topic: "/velodyne_points",
+    trajectory_pub_topic: "trajectory",
+    odometry_trajectory_pub_topic: "odometry_trajectory",
+
+    full_map_pub_topic: "full_map",
+    local_map_pub_topic: "local_map",
+    distant_map_pub_topic: "distant_map",
+    
+    create_filtered_map: true,
+    publish_local_map: true,
+    publish_distant_map: false,
+    publish_full_map: false,
+    map_publication_rate_hz: 3,
+    
+    # jxl
+    # distance_to_consider_fixed: double
+    # separate_distant_map: bool
+    # minimum_distance_to_add_pose: double  #距离超过一定阈值，才处理该帧laser。
+
+    # voxel_size_m: double
+    # minimum_point_number_per_voxel: int
+
+    # remove_ground_from_local_map: false #default
+    # ground_distance_to_robot_center_m: double
+  },
+ 
+
+
+
+
+  # SegMatchWorker parameters
+  SegMatchWorker: {
+  localize: false,   #是否是纯定位模式
+  close_loops: true, #如果localize和close_loops同时设置为true，代码中会将close_loops置为false，getSegMatchWorkerParams()
+  
+  #target_cloud_filename string  #localize为true时，需要设置该参数，指定pcd格式的map
+  
+  distance_between_segmentations_m: 0.0,
+
+  distance_to_lower_target_cloud_for_viz_m: 15.0,
+  align_target_map_on_first_loop_closure: false,
+  
+  ratio_of_points_to_keep_when_publishing: 1.0,
+  
+  export_segments_and_matches: false,
+  publish_predicted_segment_matches: false,
+  
+  line_scale_loop_closures: 5.0,
+  line_scale_matches: 0.5,
+
+  #segmatch模块参数
+  SegMatch: {
+    filter_boundary_segments: true,
+    boundary_radius_m: 999.0,
+    filter_duplicate_segments: true,
+    centroid_distance_threshold_m: 2.5,
+    min_time_between_segment_for_matches_s: 60, #int
+    check_pose_lies_below_segments: false,
+
+    #segmentation_radius_m: double
+    #segmentation_height_above_m: double
+    #segmentation_height_below_m: double
+
+    #需要估计法向量的segmenter
+    #radius_for_normal_estimation_m: double 
+    #normal_estimator_type: string
+
+    LocalMap: {
+      voxel_size_m: 0.10,
+      min_points_per_voxel: 1,
+      radius_m: 50,
+      min_vertical_distance_m: -999.0,
+      max_vertical_distance_m: 999.0,
+      neighbors_provider_type: "KdTree", #Octree
+    },
+    
+    Segmenters: {      
+      segmenter_type: "IncrementalEuclideanDistance", # IncrementalSmoothnessConstraints, SimpleSmoothnessConstraints 这两个候选项需要估计法向量
+      min_cluster_size: 100,
+      max_cluster_size: 15000,
+      radius_for_growing: 0.2
+      #sc_smoothness_threshold_deg: double 
+      #sc_curvature_threshold: double
+    },
+
+    Descriptors: {
+      descriptor_types: ["EigenvalueBased"], # "EnsembleShapeFunctions"
+
+      #fast_point_feature_histograms_search_radius: 0.8  #default
+      #fast_point_feature_histograms_normals_search_radius: 0.5 #default
+      #point_feature_histograms_search_radius: 0.8  #default
+      #point_feature_histograms_normals_search_radius: 0.5 #default
+      #cnn_model_path: string
+      #semantics_nn_path: string
+    },
+
+    Classifier: {
+     threshold_to_accept_match: 0.60,
+     n_nearest_neighbours: 120,
+     knn_feature_dim: 7,
+     enable_two_stage_retrieval: true,
+     apply_hard_threshold_on_feature_distance: true,
+     feature_distance_threshold: 0.01,
+     
+     normalize_eigen_for_knn: false,
+     normalize_eigen_for_hard_threshold: true,
+     max_eigen_features_values: [2493.5, 186681.0, 188389.0, 0.3304, 188388.0, 1.0899, 0.9987]
+
+     #classifier_filename: string
+     #do_not_use_cars: bool
+
+     #OpenCV random forest parameters.
+     #rf_max_depth: int
+     #rf_min_sample_ratio: double
+     #rf_regression_accuracy: double
+     #rf_use_surrogates: bool
+     #rf_max_categories: int
+     #rf_priors: vector<double>
+     #rf_calc_var_importance: bool
+     #rf_n_active_vars: int
+     #rf_max_num_of_trees: int
+     #rf_accuracy: double
+    },
+
+    GeometricConsistency: {
+      recognizer_type: "Incremental", #"Simple", "Partitioned"
+      resolution: 0.4,
+      min_cluster_size: 6,
+      max_consistency_distance_for_caching: 3.0,
+    }
+  },
+  },
+  
+
+
+
+  OnlineEstimator: {
+    loop_closure_noise_model: [0.0005, 0.0005, 0.0005, 0.00015, 0.00015, 0.00015],
+    add_m_estimator_on_loop_closures: true, #true时，用上面的noise model创建robust noise, 否则就是一般的noise. laser_slam/incremental_estimator.cpp
+    
+    do_icp_step_on_loop_closures: false,
+    loop_closures_sub_maps_radius: 3, #int
+
+    LaserTrack: {
+      odometry_noise_model: [0.5, 0.5, 0.5, 0.015, 0.015, 0.015],
+      icp_noise_model: [0.5, 0.05, 0.05, 0.015, 0.015, 0.015],
+      add_m_estimator_on_odom: false, #true时，用上面的noise model创建robust noise, 否则就是一般的noise. laser_slam/laser_track.cpp
+      add_m_estimator_on_icp: false,  #true时，用上面的noise model创建robust noise, 否则就是一般的noise.
+    
+      use_icp_factors: true, #Introducing ICP constraints will introduce a drift.
+      use_odom_factors: false,   #default: true
+      nscan_to_match: 3,   #not used
+      nscan_in_sub_map: 5,
+      save_icp_results: false,
+      force_priors: false
+    }
+  },
+ 
+
+  Benchmarker: {
+    save_statistics_only: false,
+    enable_live_output: false,
+    results_directory: "/tmp/segmap_benchmark/kitti_loop_closure"
+  }
+}
+
