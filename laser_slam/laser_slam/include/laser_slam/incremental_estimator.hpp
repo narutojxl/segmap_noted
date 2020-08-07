@@ -74,7 +74,7 @@ class IncrementalEstimator {
 
   std::unordered_map<unsigned int, size_t> factor_indices_to_remove_;
   
-  std::vector<std::vector<unsigned int> > linked_workers_;
+  std::vector<std::vector<unsigned int> > linked_workers_; //大小：robot个数；每个里面只有一个元素，robot id
 
   // Parameters.
   EstimatorParams params_;

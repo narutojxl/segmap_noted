@@ -87,6 +87,7 @@ class SegMapper {
 
   // Incremental estimator.
   std::shared_ptr<laser_slam::IncrementalEstimator> incremental_estimator_;
+  
 
   // SegMatch objects.
   segmatch_ros::SegMatchWorkerParams segmatch_worker_params_;

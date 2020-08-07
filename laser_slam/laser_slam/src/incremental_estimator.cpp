@@ -274,8 +274,9 @@ gtsam::Values IncrementalEstimator::registerPrior(const gtsam::NonlinearFactorGr
   ISAM2Result update_result = isam2_.update(new_factors, new_values);
 
   CHECK_EQ(update_result.newFactorsIndices.size(), 1u);
-  if (worker_id > 0u) {
-    factor_indices_to_remove_.insert(
+
+  if (worker_id > 0u) {//机器人编号从0开始
+    factor_indices_to_remove_.insert( //新添加进来的factor index
         std::make_pair(worker_id, update_result.newFactorsIndices.at(0u)));
   }
   std::vector<unsigned int> new_linked_worker;

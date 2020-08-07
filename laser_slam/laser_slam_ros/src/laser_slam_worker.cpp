@@ -105,7 +105,7 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
   if (!lock_scan_callback_) {
     if (tf_listener_.waitForTransform(params_.odom_frame, params_.sensor_frame,
                                       cloud_msg_in.header.stamp, ros::Duration(kTimeout_s))) {//用户必须提供odom frame和sensor frame TF
-      // Get the tf transform.
+      //1. Get the tf transform.
       tf::StampedTransform tf_transform;
       tf_listener_.lookupTransform(params_.odom_frame, params_.sensor_frame,
                                    cloud_msg_in.header.stamp, tf_transform);
@@ -121,23 +121,23 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
         current_pose = tfTransformToPose(tf_transform).T_w;
         float dist_m = distanceBetweenTwoSE3(current_pose, last_pose_);
         ROS_WARN("Front end: minimum_distance_to_add_pose=%.4f", params_.minimum_distance_to_add_pose);
-        if (dist_m > params_.minimum_distance_to_add_pose) {//距离超过一定阈值，才处理该帧laser。
+        if (dist_m > params_.minimum_distance_to_add_pose) {
           process_scan = true;
           last_pose_ = current_pose;
         }
       }
 
-      if (process_scan) {
+      if (process_scan) {//关键帧：距离超过一定阈值，才处理该帧laser。
         // Convert input cloud to laser scan.
         LaserScan new_scan;
         new_scan.scan = PointMatcher_ros::rosMsgToPointMatcherCloud<float>(cloud_msg_in);
         new_scan.time_ns = rosTimeToCurveTime(cloud_msg_in.header.stamp.toNSec());
 
-        // Process the new scan and get new values and factors.
+        //2. Process the new scan and get new values and factors.
         gtsam::NonlinearFactorGraph new_factors;
         gtsam::Values new_values;
         bool is_prior;
-        if (params_.use_odometry_information) {
+        if (params_.use_odometry_information) {//true
           laser_track_->processPoseAndLaserScan(tfTransformToPose(tf_transform), new_scan,
                                                 &new_factors, &new_values, &is_prior);
         } else {
@@ -169,7 +169,8 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
           last_pose_sent_to_laser_track_ = new_pose;
         }
 
-        // Process the new values and factors.
+   
+        //3. Process the new values and factors.
         gtsam::Values result;
         if (is_prior) {
           result = incremental_estimator_->registerPrior(new_factors, new_values, worker_id_);
@@ -177,14 +178,14 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
           result = incremental_estimator_->estimate(new_factors, new_values, new_scan.time_ns);
         }
 
-        // Update the trajectory.
+        //4. Update the trajectory.
         laser_track_->updateFromGTSAMValues(result);
 
-        // Adjust the correction between the world and odom frames.
-        Pose current_pose = laser_track_->getCurrentPose();
+        //5. Adjust the correction between the world and odom frames.
+        Pose current_pose = laser_track_->getCurrentPose(); //laser_track_求得的是在world_frame下的pose，world_frame在yaml中指定
         SE3 T_odom_sensor = tfTransformToPose(tf_transform).T_w;
         SE3 T_w_sensor = current_pose.T_w;
-        SE3 T_w_odom = T_w_sensor * T_odom_sensor.inverse();
+        SE3 T_w_odom = T_w_sensor * T_odom_sensor.inverse(); //world_to_odom TF
 
         Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> matrix;
 
@@ -194,15 +195,17 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
 
         {
           std::lock_guard<std::recursive_mutex> lock_world_to_odom(world_to_odom_mutex_);
-          world_to_odom_ = PointMatcher_ros::eigenMatrixToStampedTransform<float>(
+          world_to_odom_ =  //world_frame到每个机器人的odom_frame TF
+          PointMatcher_ros::eigenMatrixToStampedTransform<float>(
               matrix, params_.world_frame, params_.odom_frame, cloud_msg_in.header.stamp);
         }
-
+        
+        //6. 发布当前机器人在world_frame下的轨迹
         publishTrajectories();
 
         // Get the last cloud in world frame.
         DataPoints new_fixed_cloud;
-        laser_track_->getLocalCloudInWorldFrame(laser_track_->getMaxTime(), &new_fixed_cloud);
+        laser_track_->getLocalCloudInWorldFrame(laser_track_->getMaxTime(), &new_fixed_cloud); //转到world_frame下
 
         // Transform the cloud in sensor frame
         //TODO(Renaud) move to a transformPointCloud() fct.
@@ -225,13 +228,14 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
         //                                                             cloud_msg_in.header.stamp));
 
         PointCloud new_fixed_cloud_pcl = lpmToPcl(new_fixed_cloud);
-
-        if (params_.remove_ground_from_local_map) {
+        
+         //7. 过滤地面
+        if (params_.remove_ground_from_local_map) {//false
           const double robot_height_m = current_pose.T_w.getPosition()(2);
           PointCloud new_fixed_cloud_no_ground;
           for (size_t i = 0u; i < new_fixed_cloud_pcl.size(); ++i) {
             if (new_fixed_cloud_pcl.points[i].z > robot_height_m -
-                params_.ground_distance_to_robot_center_m) {
+                params_.ground_distance_to_robot_center_m) { //地面以上的点
               new_fixed_cloud_no_ground.push_back(new_fixed_cloud_pcl.points[i]);
             }
           }
@@ -240,8 +244,8 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
           new_fixed_cloud_pcl = new_fixed_cloud_no_ground;
         }
 
-        // Add the local scans to the full point cloud.
-        if (params_.create_filtered_map) {
+        //8. Add the local scans to the full point cloud.
+        if (params_.create_filtered_map) {//true
           if (new_fixed_cloud_pcl.size() > 0u) {
             std::lock_guard<std::recursive_mutex> lock(local_map_mutex_);
             if (local_map_.size() > 0u) {
@@ -528,6 +532,7 @@ void LaserSlamWorker::getOdometryTrajectory(Trajectory* out_trajectory) const {
   laser_track_->getOdometryTrajectory(out_trajectory);
 }
 
+//not used
 void LaserSlamWorker::updateLocalMap(const SE3& last_pose_before_update,
                                      const laser_slam::Time last_pose_before_update_timestamp_ns) {
 

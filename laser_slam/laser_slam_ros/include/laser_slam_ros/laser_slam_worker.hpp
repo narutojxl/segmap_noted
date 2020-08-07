@@ -130,13 +130,16 @@ class LaserSlamWorker {
 
   tf::TransformListener tf_listener_;
 
+
   // Pointer to the incremental estimator.
-  std::shared_ptr<laser_slam::IncrementalEstimator> incremental_estimator_;
+  std::shared_ptr<laser_slam::IncrementalEstimator> incremental_estimator_; //连接每个机器人的纽带
+
 
   // Contains the map which is estimated by the sliding window.
   // TODO(mattia): switch from local_map_ to local_map_queue_
   laser_slam_ros::PointCloud local_map_;
-  std::vector<laser_slam_ros::PointCloud> local_map_queue_;
+  std::vector<laser_slam_ros::PointCloud> local_map_queue_; //由前端位姿依次把点云拼接起来
+  
 
   laser_slam_ros::PointCloud local_map_filtered_;
 
@@ -158,7 +161,7 @@ class LaserSlamWorker {
 
   pcl::VoxelGrid<laser_slam_ros::PclPoint> voxel_filter_;
 
-  tf::StampedTransform world_to_odom_;
+  tf::StampedTransform world_to_odom_; //world_frame到每个机器人的odom_frame TF
 
   static constexpr double kTimeout_s = 0.2;
   static constexpr unsigned int kScanSubscriberMessageQueueSize = 1u;

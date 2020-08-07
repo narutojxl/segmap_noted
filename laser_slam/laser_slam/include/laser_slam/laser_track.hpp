@@ -190,19 +190,19 @@ class LaserTrack {
 
   // TODO move pose_measurements_ to the Trajectory type.
   // Pose measurements in world frame.
-  PoseVector pose_measurements_;
+  PoseVector pose_measurements_; //保存所有在odom frame下的poses
 
   // Odometry measurements in laser frame.
   // Obtained from combining and interpolating the pose measurements.
-  RelativePoseVector odometry_measurements_;
+  RelativePoseVector odometry_measurements_; //每相邻两帧位姿的delta_T
 
   // Rigid transformations obtained from ICP between LaserScans.
-  RelativePoseVector icp_transformations_;
+  RelativePoseVector icp_transformations_; //用icp把当前帧laser和local map匹配，得到的每相邻两帧的delta_T
 
   RelativePoseVector loop_closures_;
 
   // Laser scans in laser frame.
-  std::vector<LaserScan> laser_scans_;
+  std::vector<LaserScan> laser_scans_; //保存所有的lasers
 
   // Underlying trajectory.
   CurveType trajectory_;

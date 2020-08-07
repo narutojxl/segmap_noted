@@ -94,7 +94,7 @@ SegMapper::SegMapper(ros::NodeHandle& n) : nh_(n) {
         << params.local_map_pub_topic;
 
     std::unique_ptr<LaserSlamWorker> laser_slam_worker(new LaserSlamWorker());  //*每个机器人都有一个LaserSlamWorker对象
-    laser_slam_worker->init(nh_, params, incremental_estimator_, i); //*每个机器人都共享同一个incremental_estimator_
+    laser_slam_worker->init(nh_, params, incremental_estimator_, i); //*每个机器人都共享同一个incremental_estimator_，机器人编号从0开始
     laser_slam_workers_.push_back(std::move(laser_slam_worker));
   }
 
@@ -189,7 +189,7 @@ void SegMapper::segMatchThread() {
     track_id = (track_id + 1u) % laser_slam_workers_.size();
 
     // Get the queued points.
-    auto new_points = laser_slam_workers_[track_id]->getQueuedPoints();
+    auto new_points = laser_slam_workers_[track_id]->getQueuedPoints(); //返回当前追踪的机器人的前端拼接起来的点云
     if (new_points.empty()) {
       BENCHMARK_STOP_AND_IGNORE("SM");
       ++skipped_tracks_count;
@@ -211,7 +211,7 @@ void SegMapper::segMatchThread() {
     }
 
     // Process the source cloud.
-    if (segmatch_worker_params_.localize) {
+    if (segmatch_worker_params_.localize) {//定位模式
       if (segmatch_worker_.processLocalMap(local_maps_[track_id], current_pose, track_id)) {
         if (!pose_at_last_localization_set_) {
           pose_at_last_localization_set_ = true;
@@ -222,7 +222,7 @@ void SegMapper::segMatchThread() {
           pose_at_last_localization_ = current_pose.T_w;
         }
       }
-    } else {
+    } else {//建图模式
       RelativePose loop_closure;
 
       // If there is a loop closure.

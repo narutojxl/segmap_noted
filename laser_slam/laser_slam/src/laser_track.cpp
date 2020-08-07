@@ -44,6 +44,7 @@ LaserTrack::LaserTrack(const LaserTrackParams& parameters,
     odometry_noise_model_ = gtsam::noiseModel::Diagonal::Sigmas(params_.odometry_noise_model);
   }
 
+
   if (params_.add_m_estimator_on_icp) {
     LOG(INFO) << "Creating ICP noise model with cauchy.";
     icp_noise_model_  = gtsam::noiseModel::Robust::Create(
@@ -66,7 +67,7 @@ LaserTrack::LaserTrack(const LaserTrackParams& parameters,
 
 
 
-
+//not used
 void LaserTrack::processPose(const Pose& pose) {
   std::lock_guard<std::recursive_mutex> lock(full_laser_track_mutex_);
   if (pose_measurements_.empty() && pose.time_ns != 0) {
@@ -75,6 +76,8 @@ void LaserTrack::processPose(const Pose& pose) {
   pose_measurements_.push_back(pose);
 }
 
+
+//not used
 void LaserTrack::processLaserScan(const LaserScan& in_scan) {
   std::lock_guard<std::recursive_mutex> lock(full_laser_track_mutex_);
   LaserScan scan = in_scan;
@@ -122,6 +125,18 @@ void LaserTrack::processLaserScan(const LaserScan& in_scan) {
   laser_scans_.push_back(scan);
 }
 
+
+/**
+ * @brief 创建一个gtsam graph和values，给graph中分别添加由传进来的poses计算的相邻两帧关键帧的delta_T, 
+      icp把当前帧laser和local map匹配计算的每相邻两关键帧的delta_T；
+      给values中添加当前帧位姿；
+      返回graph和values。
+ * @param pose: curr pose in odom_frame 
+ * @param in_scan: 当前帧点云
+ * @param(out) newFactors 
+ * @param(out) newValues 
+ * @param(out) is_prior: 如果是第一帧点云返回true，否则，返回false。
+ */
 void LaserTrack::processPoseAndLaserScan(const Pose& pose, const LaserScan& in_scan,
                                          gtsam::NonlinearFactorGraph* newFactors,
                                          gtsam::Values* newValues,
@@ -135,24 +150,27 @@ void LaserTrack::processPoseAndLaserScan(const Pose& pose, const LaserScan& in_s
         "time of the scan to add (" << in_scan.time_ns << ").";
   }
 
-  if (newFactors != NULL) {
+  if (newFactors != NULL) {//检查Factor graph是否为空
     //todo clear without failure.
-    CHECK(newFactors->empty());
+    CHECK(newFactors->empty()); 
   }
-  if (newValues != NULL) {
+  if (newValues != NULL) {//清空node
     newValues->clear();
   }
+
 
   LaserScan scan = in_scan;
 
   // Apply the input filters.
-  input_filters_.apply(scan.scan);
+  input_filters_.apply(scan.scan); //对点云做过滤
 
   // Save the pose measurement.
   if (pose_measurements_.empty() && pose.time_ns != 0) {
     LOG(WARNING) << "First pose had timestamp different than 0 (" << pose.time_ns << ".";
   }
   pose_measurements_.push_back(pose);
+
+  
 
   // Compute the relative pose measurement, extend the trajectory and
   // compute the ICP transformations.
@@ -166,7 +184,7 @@ void LaserTrack::processPoseAndLaserScan(const Pose& pose, const LaserScan& in_s
     if (newFactors != NULL) {
       Pose prior_pose = pose;
       // Add a prior on the first key.
-      if (params_.force_priors) {
+      if (params_.force_priors) {//false
         prior_pose.T_w = SE3(SE3::Rotation(1.0, 0.0, 0.0, 0.0),
                              SE3::Position(0.0,
                                            kDistanceBetweenPriorPoses_m * laser_track_id_, 0.0));
@@ -214,13 +232,15 @@ void LaserTrack::processPoseAndLaserScan(const Pose& pose, const LaserScan& in_s
     if (newFactors != NULL) {
       // Add the odometry and ICP factors.
       if (params_.use_odom_factors) {
-        newFactors->push_back(makeRelativeMeasurementFactor(relative_measurement,
+        newFactors->push_back(makeRelativeMeasurementFactor(relative_measurement,  
                                                             odometry_noise_model_));
+                                     //trajectory_中最新的pose与当前帧pose的delta TF约束                                           
       }
 
       if (params_.use_icp_factors) {
         newFactors->push_back(makeRelativeMeasurementFactor(
             icp_transformations_[icp_transformations_.size()-1u], icp_noise_model_));
+                //用icp把当前帧laser和local map匹配，得到的trajectory_中最新的pose与当前帧pose的delta TF约束
       }
     }
     if (is_prior != NULL) {
@@ -229,9 +249,11 @@ void LaserTrack::processPoseAndLaserScan(const Pose& pose, const LaserScan& in_s
   }
 
   if (newValues != NULL) {
-    newValues->insert(scan.key, pose.T_w);
+    newValues->insert(scan.key, pose.T_w); //插入新的node
   }
 }
+
+
 
 void LaserTrack::getLastPointCloud(DataPoints* out_point_cloud) const {
   std::lock_guard<std::recursive_mutex> lock(full_laser_track_mutex_);
@@ -466,32 +488,37 @@ void LaserTrack::computeICPTransformations() {
   }
 }
 
+
+//用icp把当前帧laser和local map匹配，得到的每相邻两关键帧的delta_T
 void LaserTrack::localScanToSubMap() {
-  LaserScan last_scan = laser_scans_.back();
+  LaserScan last_scan = laser_scans_.back(); //curr laser 
   RelativePose icp_transformation;
   icp_transformation.time_b_ns = last_scan.time_ns;
-  icp_transformation.time_a_ns = laser_scans_[getNumScans() - 2u].time_ns;
+  icp_transformation.time_a_ns = laser_scans_[getNumScans() - 2u].time_ns; //倒数第二帧
 
   // Transform the last (parameters_.nscan_in_sub_map - 1) scans
   // in the frame of the second last scan.
   const SE3 T_w_to_second_last_scan = trajectory_.evaluate(
-      laser_scans_[getNumScans() - 2u].time_ns);
-  DataPoints sub_map = laser_scans_[getNumScans() - 2u].scan;
+      laser_scans_[getNumScans() - 2u].time_ns);    
+  DataPoints sub_map = laser_scans_[getNumScans() - 2u].scan; //倒数第二帧的位姿和laser
+  
+  //构建local map(points in 倒数第二帧下)
   PointMatcher::TransformationParameters transformation_matrix;
   for (size_t i = 0u; i < std::min(getNumScans() - 2u, size_t(params_.nscan_in_sub_map - 1u)); ++i) {
     LaserScan previous_scan = laser_scans_[getNumScans() - 3u - i];
     transformation_matrix = (T_w_to_second_last_scan.inverse() *
         trajectory_.evaluate(previous_scan.time_ns)).getTransformationMatrix().cast<float>();
 
-    correctTransformationMatrix(&transformation_matrix);
-
-    sub_map.concatenate(rigid_transformation_->compute(previous_scan.scan,transformation_matrix));
+    correctTransformationMatrix(&transformation_matrix);//倒数第二帧到local map的第i帧变换
+    sub_map.concatenate(rigid_transformation_->compute(previous_scan.scan,transformation_matrix)); 
+    //把local map的第i帧laser转换到倒数第二帧下，然后累加
   }
+  
 
   // Obtain the initial guess from the trajectory.
   SE3 initial_guess = trajectory_.evaluate(icp_transformation.time_a_ns).inverse() *
       trajectory_.evaluate(icp_transformation.time_b_ns);
-  transformation_matrix = initial_guess.getTransformationMatrix().cast<float>();
+  transformation_matrix = initial_guess.getTransformationMatrix().cast<float>(); //倒数第二帧到当前帧的TF
 
   PointMatcher::TransformationParameters icp_solution = transformation_matrix;
   // Compute the ICP solution.
@@ -508,8 +535,10 @@ void LaserTrack::localScanToSubMap() {
     last_scan.scan.save("/tmp/last_scan.vtk");
     sub_map.save("/tmp/sub_map.vtk");
     correctTransformationMatrix(&transformation_matrix);
+
     rigid_transformation_->compute(last_scan.scan,transformation_matrix).save(
         "/tmp/last_scan_alligned_by_initial_guess.vtk");
+
     correctTransformationMatrix(&icp_solution);
     rigid_transformation_->compute(last_scan.scan,icp_solution).save(
         "/tmp/last_scan_alligned_by_solution.vtk");
@@ -520,6 +549,8 @@ void LaserTrack::localScanToSubMap() {
   icp_transformation.key_b = getPoseKey(icp_transformation.time_b_ns);
   icp_transformations_.push_back(icp_transformation);
 }
+
+
 
 Pose* LaserTrack::findPose(const Time& timestamp_ns) {
   CHECK(!pose_measurements_.empty()) << "Cannot register the scan as no pose was registered.";
@@ -573,6 +604,7 @@ Pose LaserTrack::findNearestPose(const Time& timestamp_ns) const {
   return pose;
 }
 
+
 Key LaserTrack::extendTrajectory(const Time& timestamp_ns, const SE3& value) {
   std::vector<Time> times_ns;
   std::vector<SE3> values;
@@ -583,6 +615,7 @@ Key LaserTrack::extendTrajectory(const Time& timestamp_ns, const SE3& value) {
   CHECK_EQ(keys.size(), 1u);
   return keys[0];
 }
+
 
 std::vector<LaserScan>::const_iterator LaserTrack::getIteratorToScanAtTime(
     const curves::Time& time_ns) const {
