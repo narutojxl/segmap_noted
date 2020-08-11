@@ -100,6 +100,7 @@ void IncrementalEstimator::processLoopClosure(const RelativePose& loop_closure) 
     DataPoints sub_map_b;
     laser_tracks_[updated_loop_closure.track_id_a]->buildSubMapAroundTime(
         loop_closure.time_a_ns, params_.loop_closures_sub_maps_radius, &sub_map_a);
+
     laser_tracks_[updated_loop_closure.track_id_b]->buildSubMapAroundTime(
         loop_closure.time_b_ns, params_.loop_closures_sub_maps_radius, &sub_map_b);
     clock.takeTime();
@@ -129,9 +130,9 @@ void IncrementalEstimator::processLoopClosure(const RelativePose& loop_closure) 
                                    exp_relative);
   new_factors.push_back(new_factor);
 
+
   ExpressionFactor<SE3> new_association_factor(first_association_noise_model_,
                                                updated_loop_closure.T_a_b, exp_relative);
-
   new_associations_factors.push_back(new_association_factor);
 
   LOG(INFO) << "Estimating the trajectories.";
@@ -266,6 +267,7 @@ Values IncrementalEstimator::estimateAndRemove(
   Values result(isam2_.calculateEstimate());
   return result;
 }
+
 
 gtsam::Values IncrementalEstimator::registerPrior(const gtsam::NonlinearFactorGraph& new_factors,
                                                   const gtsam::Values& new_values,

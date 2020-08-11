@@ -9,7 +9,7 @@ SegMapper: {
   tf_publication_rate_hz: 10,
   
   LaserSlamWorker: {
-    use_odometry_information: true,  #default: true
+    use_odometry_information: true,  #default: true，是否有wheel_odom(+imu) estimator
     
     odom_frame: "world",
     sensor_frame: "velodyne",
@@ -52,7 +52,7 @@ SegMapper: {
   #如果localize和close_loops同时设置为false,不会开启后端
 
   
-  #target_cloud_filename string  #localize为true时，需要设置该参数，指定pcd格式的map
+  #target_cloud_filename string  #localize为true时，需要设置该参数，指定pcd格式的map file
   
   distance_between_segmentations_m: 0.0,
 
@@ -61,7 +61,7 @@ SegMapper: {
   
   ratio_of_points_to_keep_when_publishing: 1.0,
   
-  export_segments_and_matches: false,
+  export_segments_and_matches: false,  #是否根据分割匹配的点云建立 matches_database_
   publish_predicted_segment_matches: false,
   
   line_scale_loop_closures: 5.0,
@@ -157,8 +157,8 @@ SegMapper: {
     loop_closure_noise_model: [0.0005, 0.0005, 0.0005, 0.00015, 0.00015, 0.00015],
     add_m_estimator_on_loop_closures: true, #true时，用上面的noise model创建robust noise, 否则就是一般的noise. laser_slam/incremental_estimator.cpp
     
-    do_icp_step_on_loop_closures: false,
-    loop_closures_sub_maps_radius: 3,  #int
+    do_icp_step_on_loop_closures: false, #是否在分割matches得到的闭环约束基础上再进行一次icp提纯
+    loop_closures_sub_maps_radius: 3,    #int, 发生闭环的id附近几帧构建icp的source, target点云为再次提纯做准备
 
     LaserTrack: {
       odometry_noise_model: [0.5, 0.5, 0.5, 0.015, 0.015, 0.015],
@@ -167,7 +167,7 @@ SegMapper: {
       add_m_estimator_on_icp: false,  #true时，用上面的noise model创建robust noise, 否则就是一般的noise.
     
       use_icp_factors: true,    #Introducing ICP constraints will introduce a drift.
-      use_odom_factors: true,   #default: true
+      use_odom_factors: true,   #default: true, 是否有wheel_odom(+imu) estimator
 
       nscan_to_match: 3,    #not used
       nscan_in_sub_map: 5,  #local map大小，用icp把当前帧laser和local map匹配

@@ -43,14 +43,20 @@ LocalMap<InputPointT, ClusteredPointT>::LocalMap(
   }
 }
 
+
+/**
+ * @brief 
+ * @param new_clouds: 当前追踪的机器人的前端拼接起来的点云 
+ * @param pose: 当前机器人在world_frame下的坐标
+ */
 template<typename InputPointT, typename ClusteredPointT>
 void LocalMap<InputPointT, ClusteredPointT>::updatePoseAndAddPoints(
     const std::vector<InputCloud>& new_clouds, const laser_slam::Pose& pose) {
   BENCHMARK_BLOCK("SM.UpdateLocalMap");
 
-  std::vector<bool> is_point_removed = updatePose(pose);
-  std::vector<int> created_points_indices = addPointsAndGetCreatedVoxels(new_clouds);
-  std::vector<int> points_mapping = buildPointsMapping(is_point_removed, created_points_indices);
+  std::vector<bool> is_point_removed = updatePose(pose); //根据当前的位姿，利用圆柱体滤波器，确定需要移除局部地图的点
+  std::vector<int> created_points_indices = addPointsAndGetCreatedVoxels(new_clouds); //将新的点云添加到voxel_grid_中
+  std::vector<int> points_mapping = buildPointsMapping(is_point_removed, created_points_indices); //重新确定点云中点的索引
 
   // Update the points neighbors provider.
   BENCHMARK_START("SM.UpdateLocalMap.UpdatePointsNeighborsProvider");
@@ -76,7 +82,7 @@ std::vector<bool> LocalMap<InputPointT, ClusteredPointT>::updatePose(const laser
   position.y = pose.T_w.getPosition()[1];
   position.z = pose.T_w.getPosition()[2];
 
-  // Remove points according to a cylindrical filter predicate.
+  // Remove points according to a cylindrical(圆柱形) filter predicate.
   std::vector<bool> is_point_removed = voxel_grid_.removeIf([&](const ClusteredPointT& p) {
     float distance_xy_squared = pow(p.x - position.x, 2.0) + pow(p.y - position.y, 2.0);
     bool remove = distance_xy_squared > radius_squared_m2_

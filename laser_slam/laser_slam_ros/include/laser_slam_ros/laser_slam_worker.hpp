@@ -138,8 +138,10 @@ class LaserSlamWorker {
   // Contains the map which is estimated by the sliding window.
   // TODO(mattia): switch from local_map_ to local_map_queue_
   laser_slam_ros::PointCloud local_map_;
-  std::vector<laser_slam_ros::PointCloud> local_map_queue_; //由前端位姿依次把点云拼接起来
-  
+  std::vector<laser_slam_ros::PointCloud> local_map_queue_; 
+  //local_map_queue_[i]: 第i个位姿的local map在world_frame下
+  //所有的内容合起来表示的是由前端位姿依次把点云拼接起来的whole map
+
 
   laser_slam_ros::PointCloud local_map_filtered_;
 

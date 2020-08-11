@@ -205,7 +205,7 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
 
         // Get the last cloud in world frame.
         DataPoints new_fixed_cloud;
-        laser_track_->getLocalCloudInWorldFrame(laser_track_->getMaxTime(), &new_fixed_cloud); //转到world_frame下
+        laser_track_->getLocalCloudInWorldFrame(laser_track_->getMaxTime(), &new_fixed_cloud); //latest 点云在world_frame下
 
         // Transform the cloud in sensor frame
         //TODO(Renaud) move to a transformPointCloud() fct.
@@ -264,7 +264,8 @@ void LaserSlamWorker::scanCallback(const sensor_msgs::PointCloud2& cloud_msg_in)
   }
 }
 
-//后端线程调用
+//后端线程检测到闭环的时候，会置lock_scan_callback_ = true, 开始处理闭环
+//闭环约束处理完后，解锁每个laser workers
 void LaserSlamWorker::setLockScanCallback(bool new_state) {
   std::lock_guard<std::recursive_mutex> lock(scan_callback_mutex_);
   lock_scan_callback_ = new_state;

@@ -186,10 +186,11 @@ void SegMapper::segMatchThread() {
     // No, we don't include sleeping in the timing, as it is an intended delay.
     BENCHMARK_START("SM");
     // Set the next source cloud to process.
-    track_id = (track_id + 1u) % laser_slam_workers_.size();
+    track_id = (track_id + 1u) % laser_slam_workers_.size(); //依次循环每个追踪的机器人
 
     // Get the queued points.
     auto new_points = laser_slam_workers_[track_id]->getQueuedPoints(); //返回当前追踪的机器人的前端拼接起来的点云
+
     if (new_points.empty()) {
       BENCHMARK_STOP_AND_IGNORE("SM");
       ++skipped_tracks_count;
@@ -255,9 +256,11 @@ void SegMapper::segMatchThread() {
         }
         BENCHMARK_STOP("SM.ProcessLoopClosure.GettingLastPoseOfTrajectories");
 
+
         BENCHMARK_START("SM.ProcessLoopClosure.UpdateIncrementalEstimator");
-        incremental_estimator_->processLoopClosure(loop_closure);
+        incremental_estimator_->processLoopClosure(loop_closure); //处理闭环，将闭环得到的约束关系添加到因子图中，更新isam2
         BENCHMARK_STOP("SM.ProcessLoopClosure.UpdateIncrementalEstimator");
+
 
         BENCHMARK_START("SM.ProcessLoopClosure.ProcessLocalMap");
         for (size_t i = 0u; i < laser_slam_workers_.size(); ++i) {
@@ -306,7 +309,7 @@ void SegMapper::segMatchThread() {
 
         // Unlock the workers.
         for (auto& worker: laser_slam_workers_) {
-          worker->setLockScanCallback(false);
+          worker->setLockScanCallback(false); //闭环约束处理完后，解锁每个laser workers
         }
 
         n_loops++;

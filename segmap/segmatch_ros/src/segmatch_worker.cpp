@@ -106,9 +106,9 @@ void SegMatchWorker::loadTargetCloud() {
 
 
 bool SegMatchWorker::processLocalMap(
-    segmatch::SegMatch::LocalMapT& local_map,
-    const laser_slam::Pose& latest_pose,
-    unsigned int track_id,
+    segmatch::SegMatch::LocalMapT& local_map, //当前追踪的机器人的前端拼接起来的whole map，world_frame下
+    const laser_slam::Pose& latest_pose, //当前追踪机器人在world_frame下的latest pose
+    unsigned int track_id, //机器人id号
     RelativePose* loop_closure) {
   BENCHMARK_BLOCK("SM.Worker");
 
@@ -143,7 +143,10 @@ bool SegMatchWorker::processLocalMap(
     if (!robot_drove_enough) return false;
 
     // Process the source cloud.
-    segmatch_.processAndSetAsSourceCloud(local_map, latest_pose, track_id);
+    segmatch_.processAndSetAsSourceCloud(local_map, latest_pose, track_id); 
+    //segmatch类核心
+    //对点云进行分割，特征提取，计算描述子
+
 
     if (params_.export_segments_and_matches) {
       segments_database_ += segmatch_.getSourceAsSegmentedCloud(track_id);
@@ -152,19 +155,23 @@ bool SegMatchWorker::processLocalMap(
     // Find matches.
     PairwiseMatches predicted_matches = segmatch_.findMatches(NULL, track_id,
                                                               latest_pose.time_ns);
+    //segmatch类核心
+    //根据描述子计算当前帧点云和自己map点云的匹配
+
 
     // Filter matches and try to recognize the local map.
-    PairwiseMatches filtered_matches = segmatch_.filterMatches(predicted_matches, track_id);
+    PairwiseMatches filtered_matches = segmatch_.filterMatches(predicted_matches, track_id);//过滤时间较近的匹配，防止分割自匹配
+
     const PairwiseMatches& recognized_matches = segmatch_.recognize(filtered_matches,
                                                                     track_id,
                                                                     latest_pose.time_ns,
-                                                                    loop_closure);
+                                                                    loop_closure); //利用几何一致性算法确定分割出来的匹配之间的变换
 
     // TODO move after optimizing and updating target map?
     if (params_.close_loops) {
       // If we did not find a loop-closure, transfer the source to the target map.
-      if (recognized_matches.empty()) {
-        segmatch_.transferSourceToTarget(track_id, latest_pose.time_ns);
+      if (recognized_matches.empty()) {//没有检测到闭环
+        segmatch_.transferSourceToTarget(track_id, latest_pose.time_ns); //将局部分割出来的点云加到目标点云中(整体点云)
       }
     } else if (params_.localize){
       if (!recognized_matches.empty() && !first_localization_occured_) {
@@ -202,6 +209,8 @@ bool SegMatchWorker::processLocalMap(
     return false;
   }
 }
+
+
 
 void SegMatchWorker::update(const Trajectory& trajectory) {
   std::vector<Trajectory> trajectories;
